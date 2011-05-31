@@ -1,3 +1,4 @@
+// vim:set noet:
 /*******************************************************************************
  * Copyright (c) 2010, 2011 IBM Corporation and others.
  * All rights reserved. This program and the accompanying materials are made 
@@ -8,6 +9,7 @@
  * Contributors: 
  *		Felipe Heidrich (IBM Corporation) - initial API and implementation
  *		Silenio Quarti (IBM Corporation) - initial API and implementation
+ *		Mihai Sucan (Mozilla Foundation)
  ******************************************************************************/
 
 /*global window document navigator setTimeout clearTimeout alert XMLHttpRequest */
@@ -283,6 +285,7 @@ eclipse.Editor = (function() {
 		 * <li>"LineStyle" See {@link #onLineStyle} </li>
 		 * <li>"ModelChanging" See {@link #onModelChanging} </li>
 		 * <li>"ModelChanged" See {@link #onModelChanged} </li>
+		 * <li>"ContextMenu" See {@link #onContextMenu} </li>
 		 * </ul>
 		 * @param {Object} context the context of the function.
 		 * @param {Function} func the function that will be executed when the event happens. 
@@ -1165,6 +1168,30 @@ eclipse.Editor = (function() {
 		 */
 		onVerify: function(verifyEvent) {
 			this._eventTable.sendEvent("Verify", verifyEvent);
+		},
+
+		/**
+		 * @class This is the event sent when the user right clicks or otherwise
+		 * invokes the context menu of the editor.
+		 * <p>
+		 * <b>See:</b><br/>
+		 * {@link eclipse.Editor}<br/>
+		 * {@link eclipse.Editor#event:onContextMenu}
+		 * </p>
+		 *
+		 * <p>
+		 * The event object is the contextmenu DOM event received from the browser.
+		 * </p>
+		 * @name eclipse.ContextMenuEvent
+		 */
+		/**
+		 * This event is sent when the user invokes the editor context menu.
+		 *
+		 * @event
+		 * @param {eclipse.ContextMenuEvent} contextMenuEvent the event
+		 */
+		onContextMenu: function(contextMenuEvent) {
+			this._eventTable.sendEvent("ContextMenu", contextMenuEvent);
 		},
 		/**
 		 * Redraws the text in the given line range.
@@ -3620,6 +3647,8 @@ eclipse.Editor = (function() {
 				if (!isW3CEvents) {
 					handlers.push({target: this._clientDiv, type: "dblclick", handler: function(e) { return self._handleDblclick(e); }});
 				}
+
+				handlers.push({target: topNode, type: "contextmenu", handler: function(e) { return self.onContextMenu(e || window.event);}});
 			}
 			for (var i=0; i<handlers.length; i++) {
 				var h = handlers[i];
