@@ -92,6 +92,12 @@ function checkEditor() {
 	editor.addRuler(annotation);
 	editor.addRuler(lines);
 	editor.addRuler(overview);
+
+  editor.addEventListener("ContextMenu", editor, onContextMenu);
+}
+
+function onContextMenu(e) {
+  log("contextmenu screenX " + e.screenX + " screenY " + e.screenY);
 }
 
 function createJavaSample() {
