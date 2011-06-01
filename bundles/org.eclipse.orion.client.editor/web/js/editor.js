@@ -1171,29 +1171,6 @@ eclipse.Editor = (function() {
 		},
 
 		/**
-		 * @class This is the event sent when the user right clicks or otherwise
-		 * invokes the context menu of the editor.
-		 * <p>
-		 * <b>See:</b><br/>
-		 * {@link eclipse.Editor}<br/>
-		 * {@link eclipse.Editor#event:onContextMenu}
-		 * </p>
-		 *
-		 * <p>
-		 * The event object is the contextmenu DOM event received from the browser.
-		 * </p>
-		 * @name eclipse.ContextMenuEvent
-		 */
-		/**
-		 * This event is sent when the user invokes the editor context menu.
-		 *
-		 * @event
-		 * @param {eclipse.ContextMenuEvent} contextMenuEvent the event
-		 */
-		onContextMenu: function(contextMenuEvent) {
-			this._eventTable.sendEvent("ContextMenu", contextMenuEvent);
-		},
-		/**
 		 * Redraws the text in the given line range.
 		 * <p>
 		 * The line at the end index is not redrawn.
@@ -1626,8 +1603,43 @@ eclipse.Editor = (function() {
 				}
 			}
 		},
+
+		/**
+		 * @class This is the event sent when the user right clicks or otherwise invokes the context menu of the editor.
+		 * <p>
+		 * <b>See:</b><br/>
+		 * {@link eclipse.Editor}<br/>
+		 * {@link eclipse.Editor#event:onContextMenu}
+		 * </p>
+		 *
+		 * @name eclipse.ContextMenuEvent
+		 *
+		 * @property {Number} x The pointer location on the x axis, relative to the document the user is editing.
+		 * @property {Number} y The pointer location on the y axis, relative to the document the user is editing.
+		 * @property {Number} screenX The pointer location on the x axis, relative to the screen. This is copied from the DOM contextmenu event.screenX property.
+		 * @property {Number} screenY The pointer location on the y axis, relative to the screen. This is copied from the DOM contextmenu event.screenY property.
+		 */
+		/**
+		 * This event is sent when the user invokes the editor context menu.
+		 *
+		 * @event
+		 * @param {eclipse.ContextMenuEvent} contextMenuEvent the event
+		 */
+		onContextMenu: function(contextMenuEvent) {
+			this._eventTable.sendEvent("ContextMenu", contextMenuEvent);
+		},
+
 		_handleContextMenu: function (e) {
 			if (!e) { e = window.event; }
+
+			var scroll = this._getScroll();
+			var editorRect = this._editorDiv.getBoundingClientRect();
+			var editorPad = this._getEditorPadding();
+			var x = e.clientX + scroll.x - editorRect.left - editorPad.left;
+			var y = e.clientY + scroll.y - editorRect.top - editorPad.top;
+
+			this.onContextMenu({x: x, y: y, screenX: e.screenX, screenY: e.screenY});
+
 			if (e.preventDefault) { e.preventDefault(); }
 			return false;
 		},
@@ -3647,8 +3659,6 @@ eclipse.Editor = (function() {
 				if (!isW3CEvents) {
 					handlers.push({target: this._clientDiv, type: "dblclick", handler: function(e) { return self._handleDblclick(e); }});
 				}
-
-				handlers.push({target: topNode, type: "contextmenu", handler: function(e) { return self.onContextMenu(e || window.event);}});
 			}
 			for (var i=0; i<handlers.length; i++) {
 				var h = handlers[i];

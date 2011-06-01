@@ -97,7 +97,11 @@ function checkEditor() {
 }
 
 function onContextMenu(e) {
-  log("contextmenu screenX " + e.screenX + " screenY " + e.screenY);
+  log("contextmenu");
+  log("document x " + e.x + " y " + e.y);
+  editor.convert(e, "document", "page");
+  log("page x " + parseInt(e.x) + " y " + parseInt(e.y));
+  log("screen x " + e.screenX + " y " + e.screenY);
 }
 
 function createJavaSample() {
