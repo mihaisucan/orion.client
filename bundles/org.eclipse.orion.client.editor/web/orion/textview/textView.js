@@ -2241,12 +2241,22 @@ orion.textview.TextView = (function() {
 				var model = this._model;
 				var caret = selection.getCaret();
 				var lineIndex = model.getLineAtOffset(caret);
-				if (caret === model.getLineStart(lineIndex)) {
+				var lineStart = model.getLineStart(lineIndex);
+				if (caret === lineStart) {
 					if (lineIndex > 0) {
 						selection.extend(model.getLineEnd(lineIndex - 1));
 					}
 				} else {
-					selection.extend(this._getOffset(caret, args.unit, -1));
+					var removeTab = false;
+					if (this._expandTab && args.unit === "character" && (caret - lineStart) % this._tabSize === 0) {
+						var lineText = this.getText(lineStart, caret);
+						removeTab = !/[^ ]/.test(lineText); // Only spaces between line start and caret.
+					}
+					if (removeTab) {
+						selection.extend(caret - this._tabSize);
+					} else {
+						selection.extend(this._getOffset(caret, args.unit, -1));
+					}
 				}
 			}
 			this._modifyContent({text: "", start: selection.start, end: selection.end}, true);
@@ -2488,7 +2498,16 @@ orion.textview.TextView = (function() {
 			return true;
 		},
 		_doTab: function (args) {
-			this._doContent("\t"); 
+			var chars = "\t";
+			if (this._expandTab) {
+				var caret = this.getCaretOffset();
+				var model = this.getModel();
+				var lineIndex = model.getLineAtOffset(caret);
+				var lineStart = model.getLineStart(lineIndex);
+				var spaces = this._tabSize - ((caret - lineStart) % this._tabSize);
+				chars = (new Array(spaces + 1)).join(" ");
+			}
+			this._doContent(chars);
 			return true;
 		},
 		
@@ -2812,7 +2831,7 @@ orion.textview.TextView = (function() {
 			if (lineText.length !== 0) {
 				var start = 0;
 				var tabSize = this._tabSize;
-				if (tabSize && tabSize !== 8) {
+				if (tabSize && tabSize !== 8 && !isOpera && (!isFirefox || isFirefox < 4)) {
 					var tabIndex = lineText.indexOf("\t"), ignoreChars = 0;
 					while (tabIndex !== -1) {
 						this._createRange(child, document, e.ranges, start, tabIndex, lineText, lineStart);
@@ -3910,10 +3929,10 @@ orion.textview.TextView = (function() {
 					clientDiv.style.OTabSize = options.tabSize+"";
 				} else if (isFirefox >= 4) {
 					clientDiv.style.MozTabSize = options.tabSize+"";
-				} else if (options.tabSize !== 8) {
-					this._tabSize = options.tabSize;
 				}
 			}
+			this._tabSize = options.tabSize || 8;
+			this._expandTab = options.expandTab;
 			this._createActions();
 			this._hookEvents();
 		},
