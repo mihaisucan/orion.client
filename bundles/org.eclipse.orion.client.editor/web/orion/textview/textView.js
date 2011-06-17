@@ -8,7 +8,7 @@
  * Contributors: 
  *		Felipe Heidrich (IBM Corporation) - initial API and implementation
  *		Silenio Quarti (IBM Corporation) - initial API and implementation
- *		Mihai Sucan (Mozilla Foundation) - fix for Bugs 334583, 348471, 349485
+ *		Mihai Sucan (Mozilla Foundation) - fix for Bugs 334583, 348471, 349485, 349670
  ******************************************************************************/
 
 /*global window document navigator setTimeout clearTimeout XMLHttpRequest define */
