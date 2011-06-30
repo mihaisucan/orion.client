@@ -8,7 +8,7 @@
  * Contributors: 
  *		Felipe Heidrich (IBM Corporation) - initial API and implementation
  *		Silenio Quarti (IBM Corporation) - initial API and implementation
- *		Mihai Sucan (Mozilla Foundation) - fix for Bugs 334583, 348471, 349485
+ *		Mihai Sucan (Mozilla Foundation) - fix for Bugs 334583, 348471, 349485, 350820
  ******************************************************************************/
 
 /*global window document navigator setTimeout clearTimeout XMLHttpRequest define */
@@ -2784,7 +2784,7 @@ orion.textview.TextView = (function() {
 			}
 			var fullSelection = this._fullSelection;
 			var extendSelection = !fullSelection && (isFirefox || isOpera || isIE >= 9);
-			var c = extendSelection ? " " : (isWebkit || isFirefox ? "\u200C" : "\uFEFF");
+			var c = extendSelection ? " " : (isWebkit ? "\u200C" : "\uFEFF");
 			span.appendChild(document.createTextNode(c));
 			child.appendChild(span);
 			
