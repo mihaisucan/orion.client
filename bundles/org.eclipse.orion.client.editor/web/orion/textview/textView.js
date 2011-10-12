@@ -2377,13 +2377,16 @@ orion.textview.TextView = (function() {
 			var lineIndex = model.getLineAtOffset(caret);
 			if (lineIndex + 1 < model.getLineCount()) {
 				var x = this._columnX;
+				var scrollX = this._getScroll().x;
 				if (x === -1 || args.select) {
 					x = this._getOffsetToX(caret);
+					this._columnXscroll = scrollX;
 				}
-				selection.extend(this._getXToOffset(lineIndex + 1, x));
+				var scrollDiff = this._columnXscroll - scrollX;
+				selection.extend(this._getXToOffset(lineIndex + 1, x + scrollDiff));
 				if (!args.select) { selection.collapse(); }
 				this._setSelection(selection, true, true);
-				this._columnX = x;//fix x by scrolling
+				this._columnX = x;
 			}
 			return true;
 		},
@@ -2394,13 +2397,16 @@ orion.textview.TextView = (function() {
 			var lineIndex = model.getLineAtOffset(caret);
 			if (lineIndex > 0) {
 				var x = this._columnX;
+				var scrollX = this._getScroll().x;
 				if (x === -1 || args.select) {
 					x = this._getOffsetToX(caret);
+					this._columnXscroll = scrollX;
 				}
-				selection.extend(this._getXToOffset(lineIndex - 1, x));
+				var scrollDiff = this._columnXscroll - scrollX;
+				selection.extend(this._getXToOffset(lineIndex - 1, x + scrollDiff));
 				if (!args.select) { selection.collapse(); }
 				this._setSelection(selection, true, true);
-				this._columnX = x;//fix x by scrolling
+				this._columnX = x;
 			}
 			return true;
 		},
@@ -2417,13 +2423,17 @@ orion.textview.TextView = (function() {
 				var scrollLines = Math.min(lineCount - caretLine - 1, lines);
 				scrollLines = Math.max(1, scrollLines);
 				var x = this._columnX;
+				var scrollX = this._getScroll().x;
 				if (x === -1 || args.select) {
 					x = this._getOffsetToX(caret);
+					this._columnXscroll = scrollX;
 				}
-				selection.extend(this._getXToOffset(caretLine + scrollLines, x));
+				var scrollDiff = this._columnXscroll - scrollX;
+				var newCaretOffset = this._getXToOffset(caretLine + scrollLines, x + scrollDiff);
+				selection.extend(newCaretOffset);
 				if (!args.select) { selection.collapse(); }
 				this._setSelection(selection, false, false);
-				
+
 				var verticalMaximum = lineCount * lineHeight;
 				var verticalScrollOffset = this._getScroll().y;
 				var scrollOffset = verticalScrollOffset + scrollLines * lineHeight;
@@ -2431,11 +2441,21 @@ orion.textview.TextView = (function() {
 					scrollOffset = verticalMaximum - clientHeight;
 				} 
 				if (scrollOffset > verticalScrollOffset) {
-					this._scrollView(0, scrollOffset - verticalScrollOffset);
+					var viewPad = this._getViewPadding();
+					var viewRect = this._viewDiv.getBoundingClientRect(); 
+					var newCaretX = this._getOffsetToX(newCaretOffset) - viewRect.left - viewPad.left;
+					var clientWidth = this._getClientWidth();
+					var newScrollX = 0;
+					if (newCaretX > clientWidth) {
+						newScrollX = newCaretX - clientWidth;
+					} else if (newCaretX < 0) {
+						newScrollX = newCaretX;
+					}
+					this._scrollView(newScrollX, scrollOffset - verticalScrollOffset);
 				} else {
 					this._updateDOMSelection();
 				}
-				this._columnX = x;//fix x by scrolling
+				this._columnX = x;
 			}
 			return true;
 		},
@@ -2450,21 +2470,35 @@ orion.textview.TextView = (function() {
 				var lines = Math.floor(clientHeight / lineHeight);
 				var scrollLines = Math.max(1, Math.min(caretLine, lines));
 				var x = this._columnX;
+				var scrollX = this._getScroll().x;
 				if (x === -1 || args.select) {
 					x = this._getOffsetToX(caret);
+					this._columnXscroll = scrollX;
 				}
-				selection.extend(this._getXToOffset(caretLine - scrollLines, x));
+				var scrollDiff = this._columnXscroll - scrollX;
+				var newCaretOffset = this._getXToOffset(caretLine - scrollLines, x + scrollDiff);
+				selection.extend(newCaretOffset);
 				if (!args.select) { selection.collapse(); }
 				this._setSelection(selection, false, false);
 				
 				var verticalScrollOffset = this._getScroll().y;
 				var scrollOffset = Math.max(0, verticalScrollOffset - scrollLines * lineHeight);
 				if (scrollOffset < verticalScrollOffset) {
-					this._scrollView(0, scrollOffset - verticalScrollOffset);
+					var viewPad = this._getViewPadding();
+					var viewRect = this._viewDiv.getBoundingClientRect(); 
+					var newCaretX = this._getOffsetToX(newCaretOffset) - viewRect.left - viewPad.left;
+					var clientWidth = this._getClientWidth();
+					var newScrollX = 0;
+					if (newCaretX > clientWidth) {
+						newScrollX = newCaretX - clientWidth;
+					} else if (newCaretX < 0) {
+						newScrollX = newCaretX;
+					}
+					this._scrollView(newScrollX, scrollOffset - verticalScrollOffset);
 				} else {
 					this._updateDOMSelection();
 				}
-				this._columnX = x;//fix x by scrolling
+				this._columnX = x;
 			}
 			return true;
 		},
