@@ -8,7 +8,7 @@
  * Contributors: 
  *		Felipe Heidrich (IBM Corporation) - initial API and implementation
  *		Silenio Quarti (IBM Corporation) - initial API and implementation
- *		Mihai Sucan (Mozilla Foundation) - fix for Bug#334583 Bug#348471 Bug#349485 Bug#350595 Bug#360726 Bug#361180
+ *		Mihai Sucan (Mozilla Foundation) - fix for Bug#334583 Bug#348471 Bug#349485 Bug#350595 Bug#360726 Bug#361180 Bug#358623
  ******************************************************************************/
 
 /*global window document navigator setTimeout clearTimeout XMLHttpRequest define */
@@ -66,6 +66,7 @@ orion.textview.TextView = (function() {
 	var isLinux = navigator.platform.indexOf("Linux") !== -1;
 	var isW3CEvents = typeof window.document.documentElement.addEventListener === "function";
 	var isRangeRects = (!isIE || isIE >= 9) && typeof window.document.createRange().getBoundingClientRect === "function";
+	var isDnD = isFirefox || isWebkit; // drag and drop support
 	var platformDelimiter = isWindows ? "\r\n" : "\n";
 	
 	/** 
@@ -394,6 +395,8 @@ orion.textview.TextView = (function() {
 			var e = {};
 			this.onDestroy(e);
 
+			this._dragStartSelection = null;
+			this._dropDestination = null;
 			this._parent = null;
 			this._parentDocument = null;
 			this._model = null;
@@ -1547,18 +1550,110 @@ orion.textview.TextView = (function() {
 		},
 		_handleDragStart: function (e) {
 			if (!e) { e = window.event; }
+			if (isDnD) {
+				var sel = this._getSelection();
+				var text = !sel.isEmpty() ? this._getBaseText(sel.start, sel.end) : "";
+				if (text) {
+					e.dataTransfer.effectAllowed = "copyMove";
+					e.dataTransfer.setData("text/plain", text);
+					// TODO: generate a drag image to be a better visual indicatator of the drag operation.
+					this._dragStartSelection = {start: sel.start, end: sel.end};
+					this.focus();
+					return;
+				}
+			}
 			if (e.preventDefault) { e.preventDefault(); }
+			return false;
+		},
+		_handleDragEnd: function (e) {
+			if (!e) { e = window.event; }
+			if (e.preventDefault) { e.preventDefault(); }
+			var startSel = this._dragStartSelection;
+			var drop = this._dropDestination;
+			if (startSel && e.dataTransfer.dropEffect === "move") {
+				var offset = 0;
+				if (drop && drop.offset < Math.min(startSel.start, startSel.end)) {
+					offset = drop.length;
+				}
+				var change = {
+					text: "",
+					start: startSel.start + offset,
+					end: startSel.end + offset
+				};
+				this._modifyContent(change, false);
+			}
+			if (this._undoStack && drop) {
+				this._undoStack.endCompoundChange();
+			}
+			this._dragNode.draggable = false;
+			this._dragStartSelection = null;
+			this._dropDestination = null;
+			return false;
+		},
+		_handleDragEnter: function (e) {
+			if (!e) { e = window.event; }
+			if (e.preventDefault) { e.preventDefault(); }
+			var types = e.dataTransfer.types;
+			var allowed = false;
+			var types = isDnD ? e.dataTransfer.types : null;
+			if (types) {
+				// Firefox gives a .types of type StringList, while Webkit gives us an actual string.
+				allowed = types.contains ? types.contains("text/plain") : types.indexOf("text/plain");
+			}
+			if (allowed) {
+				e.dataTransfer.dropEffect = "copyMove";
+				this.focus();
+				return true;
+			}
+			e.dataTransfer.dropEffect = "none";
 			return false;
 		},
 		_handleDragOver: function (e) {
 			if (!e) { e = window.event; }
-			e.dataTransfer.dropEffect = "none";
 			if (e.preventDefault) { e.preventDefault(); }
+			var allowed = false;
+			var types = isDnD ? e.dataTransfer.types : null;
+			if (types) {
+				allowed = types.contains ? types.contains("text/plain") : types.indexOf("text/plain");
+			}
+			if (allowed) {
+				if (!this._dragStartSelection) {
+					// Do not hide the selection when the user drags its own selection.
+					var destLine = this._getYToLine(e.clientY);
+					var destOffset = this._getXToOffset(destLine, e.clientX);
+					this.setSelection(destOffset, destOffset, true);
+					// TODO: make sure the cursor is actually visible. It's not visible in Firefox during drag...
+				}
+				return true;
+			}
+			e.dataTransfer.dropEffect = "none";
 			return false;
 		},
 		_handleDrop: function (e) {
 			if (!e) { e = window.event; }
 			if (e.preventDefault) { e.preventDefault(); }
+			var allowed = false;
+			var types = isDnD ? e.dataTransfer.types : null;
+			if (types) {
+				allowed = types.contains ? types.contains("text/plain") : types.indexOf("text/plain");
+			}
+			if (allowed) {
+				var text = e.dataTransfer.getData("text/plain");
+				var destLine = this._getYToLine(e.clientY);
+				var destOffset = this._getXToOffset(destLine, e.clientX);
+				this.setSelection(destOffset, destOffset, true);
+				if (this._dragStartSelection) {
+					this._dropDestination = {offset: destOffset, length: text.length};
+					if (this._undoStack) {
+						this._undoStack.startCompoundChange();
+					}
+				} else {
+					this._dragNode.draggable = false;
+				}
+				this._doContent(text);
+				this.focus();
+				return true;
+			}
 			return false;
 		},
 		_handleDocFocus: function (e) {
@@ -1767,7 +1862,6 @@ orion.textview.TextView = (function() {
 			var left = e.which ? e.button === 0 : e.button === 1;
 			this._commitIME();
 			if (left) {
-				this._isMouseDown = true;
 				var deltaX = Math.abs(this._lastMouseX - e.clientX);
 				var deltaY = Math.abs(this._lastMouseY - e.clientY);
 				var time = e.timeStamp ? e.timeStamp : new Date().getTime();  
@@ -1779,6 +1873,30 @@ orion.textview.TextView = (function() {
 				this._lastMouseX = e.clientX;
 				this._lastMouseY = e.clientY;
 				this._lastMouseTime = time;
+
+				// Selection drag support
+				if (isDnD && this._clickCount === 1) {
+					var inSelection = false;
+					var selection = this._getSelection();
+					if (!selection.isEmpty()) {
+						var clickLine = this._getYToLine(e.clientY);
+						var clickOffset = this._getXToOffset(clickLine, e.clientX);
+						inSelection = selection.start < clickOffset && clickOffset < selection.end;
+					}
+
+					// Webkit fails to allow dragging if .draggable is set to true during mousedown.
+					// But Firefox makes it a requirement to set .draggable to true.
+					this._dragNode.draggable = !isWebkit && inSelection;
+
+					if (inSelection) {
+						return; // allow the dragstart event
+					}
+				}
+				if (this._dragNode && this._dragNode.draggable) {
+					this._dragNode.draggable = false;
+				}
+
+				this._isMouseDown = true;
 				this._handleMouse(e);
 				if (isOpera || isChrome) {
 					if (!this._hasFocus) {
@@ -3323,6 +3441,9 @@ orion.textview.TextView = (function() {
 			if (!isPad) {
 				clientDiv.contentEditable = "true";
 			}
+			if (isDnD) {
+				this._dragNode = this._overlayDiv || this._clientDiv;
+			}
 			this._lineHeight = this._calculateLineHeight();
 			this._viewPadding = this._calculatePadding();
 			if (isIE) {
@@ -3420,6 +3541,7 @@ orion.textview.TextView = (function() {
 			this._viewDiv = null;
 			this._clientDiv = null;
 			this._overlayDiv = null;
+			this._dragNode = null;
 			this._leftDiv = null;
 			this._rightDiv = null;
 		},
@@ -4141,6 +4263,7 @@ orion.textview.TextView = (function() {
 				handlers.push({target: touchDiv, type: "touchend", handler: function(e) { return self._handleTouchEnd(e); }});
 			} else {
 				var topNode = this._overlayDiv || this._clientDiv;
+				var dragNode = this._dragNode || topNode;
 				var grabNode = isIE ? clientDiv : this._frameWindow;
 				handlers.push({target: clientDiv, type: "keydown", handler: function(e) { return self._handleKeyDown(e);}});
 				handlers.push({target: clientDiv, type: "keypress", handler: function(e) { return self._handleKeyPress(e);}});
@@ -4154,9 +4277,13 @@ orion.textview.TextView = (function() {
 				handlers.push({target: grabNode, type: "mouseup", handler: function(e) { return self._handleMouseUp(e);}});
 				handlers.push({target: grabNode, type: "mousemove", handler: function(e) { return self._handleMouseMove(e);}});
 				handlers.push({target: body, type: "mousedown", handler: function(e) { return self._handleBodyMouseDown(e);}});
-				handlers.push({target: topNode, type: "dragstart", handler: function(e) { return self._handleDragStart(e);}});
-				handlers.push({target: topNode, type: "dragover", handler: function(e) { return self._handleDragOver(e);}});
-				handlers.push({target: topNode, type: "drop", handler: function(e) { return self._handleDrop(e);}});
+				handlers.push({target: dragNode, type: "dragstart", handler: function(e) { return self._handleDragStart(e);}});
+				if (isDnD) {
+					handlers.push({target: dragNode, type: "dragend", handler: function(e) { return self._handleDragEnd(e);}});
+					handlers.push({target: dragNode, type: "dragenter", handler: function(e) { return self._handleDragEnter(e);}});
+				}
+				handlers.push({target: dragNode, type: "dragover", handler: function(e) { return self._handleDragOver(e);}});
+				handlers.push({target: dragNode, type: "drop", handler: function(e) { return self._handleDrop(e);}});
 				if (isChrome) {
 					handlers.push({target: this._parentDocument, type: "mousemove", handler: function(e) { return self._handleMouseMove(e);}});
 					handlers.push({target: this._parentDocument, type: "mouseup", handler: function(e) { return self._handleMouseUp(e);}});
@@ -4216,6 +4343,9 @@ orion.textview.TextView = (function() {
 			this._maxLineIndex = -1;
 			this._ignoreSelect = true;
 			this._columnX = -1;
+			
+			this._dragStartSelection = null;
+			this._dropDestination = null;
 
 			/* Auto scroll */
 			this._autoScrollX = null;

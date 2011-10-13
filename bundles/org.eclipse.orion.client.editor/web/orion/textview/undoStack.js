@@ -151,6 +151,7 @@ orion.textview.UndoStack = (function() {
 			}
 		};
 		model.addListener(this._modelListener);
+		view._undoStack = this;
 		view.addEventListener("Destroy", this, this._onDestroy);
 	}
 	UndoStack.prototype = /** @lends orion.textview.UndoStack.prototype */ {
@@ -336,6 +337,7 @@ orion.textview.UndoStack = (function() {
 		_onDestroy: function() {
 			this.model.removeListener(this._modelListener);
 			this.view.removeEventListener("Destroy", this, this._onDestroy);
+			this.view._undoStack = null;
 		},
 		_onModelChanging: function(e) {
 			var newText = e.text;
