@@ -1451,6 +1451,7 @@ orion.textview.TextView = (function() {
 				}
 				temp = temp.parentNode;
 			}
+			console.log("body mousedown preventDefault");
 			if (e.preventDefault) { e.preventDefault(); }
 			if (e.stopPropagation){ e.stopPropagation(); }
 			if (!isW3CEvents) {
@@ -1724,7 +1725,7 @@ orion.textview.TextView = (function() {
 		_handleMouse: function (e) {
 			var target = this._frameWindow;
 			if (isIE) { target = this._clientDiv; }
-			if (this._overlayDiv) {
+			if (isFirefox) {
 				var self = this;
 				setTimeout(function () {
 					self.focus();
@@ -1764,21 +1765,29 @@ orion.textview.TextView = (function() {
 					return;
 				}
 			}
-			var left = e.which ? e.button === 0 : e.button === 1;
+			var button = e.which; // 1 - left, 2 - middle, 3 - right
+			if (!button && e.button === 4) { // if IE 8 or older
+				button = 2;
+			}
 			this._commitIME();
-			if (left) {
+
+			var time = button !== 2 && e.timeStamp ? e.timeStamp : new Date().getTime();
+			console.log("mousedown", button, time);
+			this._lastMouseTime = time;
+			this._lastMouseButton = button;
+
+			var deltaX = Math.abs(this._lastMouseX - e.clientX);
+			var deltaY = Math.abs(this._lastMouseY - e.clientY);
+			this._lastMouseX = e.clientX;
+			this._lastMouseY = e.clientY;
+
+			if (button === 1) {
 				this._isMouseDown = true;
-				var deltaX = Math.abs(this._lastMouseX - e.clientX);
-				var deltaY = Math.abs(this._lastMouseY - e.clientY);
-				var time = e.timeStamp ? e.timeStamp : new Date().getTime();  
 				if ((time - this._lastMouseTime) <= this._clickTime && deltaX <= this._clickDist && deltaY <= this._clickDist) {
 					this._clickCount++;
 				} else {
 					this._clickCount = 1;
 				}
-				this._lastMouseX = e.clientX;
-				this._lastMouseY = e.clientY;
-				this._lastMouseTime = time;
 				this._handleMouse(e);
 				if (isOpera || isChrome) {
 					if (!this._hasFocus) {
@@ -1794,6 +1803,7 @@ orion.textview.TextView = (function() {
 			if (!this._isMouseDown) {
 				return;
 			}
+			console.log("mosemove");
 			/*
 			* Feature in IE8 and older, the sequence of events in the IE8 event model
 			* for a doule-click is:
@@ -1850,7 +1860,14 @@ orion.textview.TextView = (function() {
 				this._doAutoScroll("right", x - rightEdge, y);
 			} else {
 				this._endAutoScroll();
-				this._setSelectionTo(x, y, true);
+				console.log("selection to", x, y);
+				var selection = this._getSelection();
+				var lineIndex = this._getYToLine(y);
+				var offset = this._getXToOffset(lineIndex, x);
+				selection.extend(offset);
+				this._setSelection(selection, true);
+
+				//this._setSelectionTo(x, y, true);
 				/*
 				* Feature in IE. IE does redraw the selection background right
 				* away after the selection changes because of mouse move events.
@@ -1871,6 +1888,7 @@ orion.textview.TextView = (function() {
 			}
 			var left = e.which ? e.button === 0 : e.button === 1;
 			if (left) {
+				console.log("mouseup left");
 				this._isMouseDown = false;
 				this._endAutoScroll();
 				
@@ -1888,6 +1906,8 @@ orion.textview.TextView = (function() {
 				* mouse down and ungrab on mouse move when the button 1 is not set.
 				*/
 				if (isW3CEvents) { this._setGrab(null); }
+			} else {
+				console.log("mouseup not left");
 			}
 		},
 		_handleMouseWheel: function (e) {
@@ -1966,6 +1986,7 @@ orion.textview.TextView = (function() {
 		_handlePaste: function (e) {
 			if (this._ignorePaste) { return; }
 			if (!e) { e = window.event; }
+			console.log("handlePaste");
 			if (this._doPaste(e)) {
 				if (isIE) {
 					/*
@@ -2050,6 +2071,7 @@ orion.textview.TextView = (function() {
 		},
 		_handleSelectStart: function (e) {
 			if (!e) { e = window.event; }
+			console.log("handleSelectStart", this._ignoreSelect);
 			if (this._ignoreSelect) {
 				if (e && e.preventDefault) { e.preventDefault(); }
 				return false;
@@ -2569,6 +2591,7 @@ orion.textview.TextView = (function() {
 				x += this._getOffsetToX(selection.getCaret());
 			}
 			selection.extend(this._getXToOffset(line, x));
+		      console.log("_autoScroll", this._autoScrollDir);
 			this._setSelection(selection, true);
 		},
 		_autoScrollTimer: function () {
@@ -2893,8 +2916,9 @@ orion.textview.TextView = (function() {
 			var lineStart = model.getLineStart(lineIndex);
 			var e = {textView: this, lineIndex: lineIndex, lineText: lineText, lineStart: lineStart};
 			this.onLineStyle(e);
-			var child = document.createElement("DIV");
+			var child = document.createElement("SPAN");
 			child.lineIndex = lineIndex;
+			child.style.display = "block";
 			this._applyStyle(e.style, child);
 			if (lineText.length !== 0) {
 				var start = 0;
@@ -2967,7 +2991,7 @@ orion.textview.TextView = (function() {
 				*/
 				c = "\u200C";
 			}
-			span.appendChild(document.createTextNode(c));
+			span.appendChild(document.createTextNode(c + "\r\n"));
 			child.appendChild(span);
 			
 			parent.insertBefore(child, sibling);
@@ -3292,7 +3316,7 @@ orion.textview.TextView = (function() {
 				}
 			}
 
-			var clientDiv = frameDocument.createElement("DIV");
+			var clientDiv = frameDocument.createElement("PRE");
 			clientDiv.className = "viewContent";
 			this._clientDiv = clientDiv;
 			clientDiv.id = "clientDiv";
@@ -3308,7 +3332,7 @@ orion.textview.TextView = (function() {
 			}
 			scrollDiv.appendChild(clientDiv);
 
-			if (isFirefox) {
+			if (isFirefox && false) {
 				var overlayDiv = frameDocument.createElement("DIV");
 				this._overlayDiv = overlayDiv;
 				overlayDiv.id = "overlayDiv";
@@ -3319,6 +3343,9 @@ orion.textview.TextView = (function() {
 				overlayDiv.style.cursor = "text";
 				overlayDiv.style.zIndex = "1";
 				scrollDiv.appendChild(overlayDiv);
+			}
+			if (isFirefox) {
+				clientDiv.style.cursor = "text";
 			}
 			if (!isPad) {
 				clientDiv.contentEditable = "true";
@@ -3559,6 +3586,7 @@ orion.textview.TextView = (function() {
 				return clipboadText.join("");
 			}
 			if (isFirefox) {
+				console.log("getClipboardText");
 				var document = this._frameDocument;
 				var clipboardDiv = this._clipboardDiv;
 				clipboardDiv.innerHTML = "<pre contenteditable=''></pre>";
@@ -3587,7 +3615,17 @@ orion.textview.TextView = (function() {
 						setTimeout(function() {
 							self.focus();
 							var text = _getText();
-							if (text) { self._doContent(text); }
+							if (!text) {
+								return;
+							}
+							var middleClick = self._lastMouseButton === 2 && new Date().getTime() - self._lastMouseTime <= self._clickTime;
+							if (middleClick) {
+								var line = self._getYToLine(self._lastMouseY);
+								var offset = self._getXToOffset(line, self._lastMouseX);
+								self._modifyContent({text: text, start: offset, end: offset});
+							} else {
+								self._doContent(text);
+							}
 						}, 0);
 						return null;
 					} else {
@@ -4515,7 +4553,8 @@ orion.textview.TextView = (function() {
 				offset += nodeLength;
 				lineChild = lineChild.nextSibling;
 			}
-			
+      console.log("startNode", startNode.lineIndex, "startOffset", startOffset, "startLineEnd", startLineEnd, "endNode", endNode.lineIndex, "endOffset", endOffset, "endLineEnd", endLineEnd);
+
 			this._setDOMFullSelection(startNode, startOffset, startLineEnd, endNode, endOffset, endLineEnd);
 			if (isPad) { return; }
 
@@ -4558,6 +4597,7 @@ orion.textview.TextView = (function() {
 		_setDOMFullSelection: function(startNode, startOffset, startLineEnd, endNode, endOffset, endLineEnd) {
 			var model = this._model;
 			if (this._selDiv1) {
+			console.log("setDOMFullSelection _selDiv1");
 				var startLineBounds, l;
 				startLineBounds = this._getLineBoundingClientRect(startNode);
 				if (startOffset === 0) {
@@ -4714,6 +4754,7 @@ orion.textview.TextView = (function() {
 		},
 		_setSelection: function (selection, scroll, update, pageScroll) {
 			if (selection) {
+				console.log("set selection", selection.start, selection.end);
 				this._columnX = -1;
 				if (update === undefined) { update = true; }
 				var oldSelection = this._selection; 
@@ -4785,7 +4826,7 @@ orion.textview.TextView = (function() {
 				selection.setCaret(start);
 				selection.extend(end);
 			} 
-			this._setSelection(selection, true, true);
+			this._setSelection(selection, true);
 		},
 		_showCaret: function (allSelection, pageScroll) {
 			if (!this._clientDiv) { return; }
@@ -4931,6 +4972,8 @@ orion.textview.TextView = (function() {
 				bottomNode = this._getLineNode(endLine);
 				bottomOffset = selection.end - model.getLineStart(endLine);
 			}
+	      console.log("topNode", topNode.lineIndex, "topOffset", topOffset, "bottomNode", bottomNode.lineIndex, "bottomOffset", bottomOffset);
+
 			this._setDOMSelection(topNode, topOffset, bottomNode, bottomOffset);
 		},
 		_updatePage: function() {
