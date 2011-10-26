@@ -1616,18 +1616,27 @@ orion.textview.TextView = (function() {
 			if (types) {
 				allowed = types.contains ? types.contains("text/plain") : types.indexOf("text/plain");
 			}
-			if (allowed) {
-				if (!this._dragStartSelection) {
-					// Do not hide the selection when the user drags its own selection.
-					var destLine = this._getYToLine(e.clientY);
-					var destOffset = this._getXToOffset(destLine, e.clientX);
-					this.setSelection(destOffset, destOffset, true);
-					// TODO: make sure the cursor is actually visible. It's not visible in Firefox during drag...
-				}
-				return true;
+			if (!allowed) {
+				e.dataTransfer.dropEffect = "none";
+				return false;
 			}
-			e.dataTransfer.dropEffect = "none";
-			return false;
+
+			var destLine = this._getYToLine(e.clientY);
+			var destOffset = this._getXToOffset(destLine, e.clientX);
+
+			var startSel = this._dragStartSelection;
+			if (startSel && startSel.start <= destOffset && destOffset <= startSel.end) {
+				e.dataTransfer.dropEffect = "none";
+				return false;
+			}
+
+			if (!startSel) {
+				// Hide the selection when the user drags something coming from the outside.
+				// TODO: make sure the cursor is actually visible. It's not visible in Firefox during drag, only in Chrome...
+				this.setSelection(destOffset, destOffset, true);
+			}
+
+			return true;
 		},
 		_handleDrop: function (e) {
 			if (!e) { e = window.event; }
@@ -1637,24 +1646,33 @@ orion.textview.TextView = (function() {
 			if (types) {
 				allowed = types.contains ? types.contains("text/plain") : types.indexOf("text/plain");
 			}
-			if (allowed) {
-				var text = e.dataTransfer.getData("text/plain");
-				var destLine = this._getYToLine(e.clientY);
-				var destOffset = this._getXToOffset(destLine, e.clientX);
-				this.setSelection(destOffset, destOffset, true);
-				if (this._dragStartSelection) {
-					this._dropDestination = {offset: destOffset, length: text.length};
-					if (this._undoStack) {
-						this._undoStack.startCompoundChange();
-					}
-				} else {
-					this._dragNode.draggable = false;
-				}
-				this._doContent(text);
-				this.focus();
-				return true;
+			if (!allowed) {
+				return false;
 			}
-			return false;
+
+			var destLine = this._getYToLine(e.clientY);
+			var destOffset = this._getXToOffset(destLine, e.clientX);
+			var startSel = this._dragStartSelection;
+
+			if (startSel && startSel.start <= destOffset && destOffset <= startSel.end) {
+				return false;
+			}
+
+			var text = e.dataTransfer.getData("text/plain");
+			this.setSelection(destOffset, destOffset, true);
+
+			if (startSel) {
+				this._dropDestination = {offset: destOffset, length: text.length};
+				if (this._undoStack) {
+					this._undoStack.startCompoundChange();
+				}
+			} else {
+				this._dragNode.draggable = false;
+			}
+
+			this._doContent(text);
+			this.focus();
+			return true;
 		},
 		_handleDocFocus: function (e) {
 			if (!e) { e = window.event; }
