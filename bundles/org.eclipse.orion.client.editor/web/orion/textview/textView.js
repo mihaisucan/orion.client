@@ -1989,6 +1989,11 @@ orion.textview.TextView = (function() {
 			}
 			var left = e.which ? e.button === 0 : e.button === 1;
 			if (left) {
+				if (this._dragNode && this._dragNode.draggable) {
+					this._dragNode.draggable = false;
+					this.focus();
+				}
+
 				this._isMouseDown = false;
 				this._endAutoScroll();
 				
