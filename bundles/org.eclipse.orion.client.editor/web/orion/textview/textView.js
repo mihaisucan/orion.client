@@ -2600,6 +2600,7 @@ orion.textview.TextView = (function() {
 			span4.appendChild(document.createTextNode(c));
 			line.appendChild(span4);
 			parent.appendChild(line);
+			var lineRect = line.getBoundingClientRect();
 			var spanRect1 = span1.getBoundingClientRect();
 			var spanRect2 = span2.getBoundingClientRect();
 			var spanRect3 = span3.getBoundingClientRect();
@@ -2609,17 +2610,14 @@ orion.textview.TextView = (function() {
 			var h3 = spanRect3.bottom - spanRect3.top;
 			var h4 = spanRect4.bottom - spanRect4.top;
 			var fontStyle = 0;
-			var lineHeight = h1;
+			var lineHeight = lineRect.bottom - lineRect.top;
 			if (h2 > h1) {
-				lineHeight = h2;
 				fontStyle = 1;
 			}
 			if (h3 > h2) {
-				lineHeight = h3;
 				fontStyle = 2;
 			}
 			if (h4 > h3) {
-				lineHeight = h4;
 				fontStyle = 3;
 			}
 			this._largestFontStyle = fontStyle;
