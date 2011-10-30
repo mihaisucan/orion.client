@@ -2009,6 +2009,9 @@ orion.textview.TextView = (function() {
 			if (left) {
 				if (this._dragNode && this._dragNode.draggable) {
 					this._dragNode.draggable = false;
+					if (!this._dragStartSelection) {
+						this._setSelectionTo(e.clientX, e.clientY, false);
+					}
 					this.focus();
 				}
 
