@@ -1912,7 +1912,7 @@
 					this._hScroll = scroll.x;
 					this._vScroll = scroll.y;
 					this._commitIME();
-					this._updatePage(oldY === scroll.y);
+					this._updatePage(oldY === scroll.y, scroll);
 					var e = {
 						type: "Scroll",
 						oldValue: {x: oldX, y: oldY},
@@ -3176,6 +3176,7 @@
 				clientDiv.style.padding = "0px";
 				clientDiv.style.MozOutline = "none";
 				clientDiv.style.outline = "none";
+				clientDiv.style.overflow = "hidden";
 				if (isPad) {
 					clientDiv.style.WebkitTapHighlightColor = "transparent";
 				}
@@ -4814,7 +4815,7 @@
 				}
 				this._setDOMSelection(topNode, topOffset, bottomNode, bottomOffset);
 			},
-			_updatePage: function(hScrollOnly) {
+			_updatePage: function(hScrollOnly, cachedScroll) {
 				if (this._redrawCount > 0) { return; }
 				if (this._updateTimer) {
 					clearTimeout(this._updateTimer);
@@ -4824,7 +4825,7 @@
 				var clientDiv = this._clientDiv;
 				if (!clientDiv) { return; }
 				var model = this._model;
-				var scroll = this._getScroll();
+				var scroll = cachedScroll || this._getScroll();
 				var viewPad = this._getViewPadding();
 				var lineCount = model.getLineCount();
 				var lineHeight = this._getLineHeight();
@@ -4836,11 +4837,14 @@
 				var scrollWidth, scrollHeight = lineCount * lineHeight;
 				var leftWidth, clientWidth, clientHeight;
 				if (hScrollOnly) {
-					clientWidth = this._getClientWidth();
-					clientHeight = this._getClientHeight();
-					leftWidth = this._leftDiv ? this._leftDiv.scrollWidth : 0;
+					clientWidth = this._cachedClientWidth;
+					clientHeight = this._cachedClientHeight;
+					leftWidth = this._cachedLeftWidth;
 					scrollWidth = Math.max(this._maxLineWidth, clientWidth);
 				} else {
+					this._cachedClientWidth = this._getClientWidth();
+					this._cachedClientHeight = this._getClientHeight();
+					this._cachedLeftWidth = this._leftDiv ? this._leftDiv.scrollWidth : 0;
 					var document = this._frameDocument;
 					var frameWidth = this._getFrameWidth();
 					var frameHeight = this._getFrameHeight();
@@ -4973,18 +4977,20 @@
 				if (clipTop === 0) { clipTop -= viewPad.top; }
 				if (clipRight === scrollWidth) { clipRight += viewPad.right; }
 				if (scroll.y + clientHeight === scrollHeight) { clipBottom += viewPad.bottom; }
-				clientDiv.style.clip = "rect(" + clipTop + "px," + clipRight + "px," + clipBottom + "px," + clipLeft + "px)";
-				clientDiv.style.left = (-left + leftWidth + viewPad.left) + "px";
+				clientDiv.scrollLeft = scroll.x;
+				//clientDiv.style.clip = "rect(" + clipTop + "px," + clipRight + "px," + clipBottom + "px," + clipLeft + "px)";
 				if (!hScrollOnly) {
-					clientDiv.style.top = (-top + viewPad.top) + "px";
-					clientDiv.style.width = (isWebkit ? scrollWidth : clientWidth + left) + "px";
-					clientDiv.style.height = (clientHeight + top) + "px";
+					clientDiv.scrollTop = scroll.y;
+					clientDiv.style.left = (leftWidth + viewPad.left) + "px";
+					clientDiv.style.top = (viewPad.top) + "px";
+					clientDiv.style.width = (isWebkit ? scrollWidth : clientWidth) + "px";
+					clientDiv.style.height = clientHeight + "px";
 				}
 				var overlayDiv = this._overlayDiv;
 				if (overlayDiv) {
-					overlayDiv.style.clip = clientDiv.style.clip;
-					overlayDiv.style.left = clientDiv.style.left;
+					//overlayDiv.style.clip = clientDiv.style.clip;
 					if (!hScrollOnly) {
+						overlayDiv.style.left = clientDiv.style.left;
 						overlayDiv.style.top = clientDiv.style.top;
 						overlayDiv.style.width = clientDiv.style.width;
 						overlayDiv.style.height = clientDiv.style.height;
