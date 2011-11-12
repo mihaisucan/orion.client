@@ -1503,6 +1503,10 @@ define(['orion/textview/textModel', 'orion/textview/keyBinding', 'orion/textview
 		_handleBlur: function (e) {
 			if (!e) { e = window.event; }
 			this._hasFocus = false;
+			if (this._ignoreBlur) {
+				this._ignoreBlur = false;
+				return;
+			}
 			/*
 			* Bug in IE 8 and earlier. For some reason when text is deselected
 			* the overflow selection at the end of some lines does not get redrawn.
@@ -1592,6 +1596,17 @@ define(['orion/textview/textModel', 'orion/textview/keyBinding', 'orion/textview
 				this._isMouseDown = false;
 				this.onDragStart(this._createMouseEvent("DragStart", e));
 				this._dragOffset = -1;
+				if (isFirefox) {
+					var self = this;
+					setTimeout(function() {
+						if (self._dragDiv.draggable) {
+							self._dragDiv.draggable = false;
+						}
+						if (self._clientDiv.contentEditable !== "true") {
+							self._clientDiv.contentEditable = true;
+						}
+					}, 0);
+				}
 			} else {
 				if (e.preventDefault) { e.preventDefault(); }
 				return false;
@@ -1606,7 +1621,24 @@ define(['orion/textview/textModel', 'orion/textview/keyBinding', 'orion/textview
 		_handleDragEnd: function (e) {
 			if (!e) { e = window.event; }
 			this._dropTarget = false;
-			this._dragOffset = e.dataTransfer.mozUserCancelled ? -2 : -1;
+			this._dragOffset = -1;
+			if (isFirefox && (e.dataTransfer.mozUserCancelled || e.dataTransfer.dropEffect === "none")) {
+				this._dragOffset = -2;
+			}
+			if (isFirefox && this.isListening("DragStart")) {
+				if (this._dragDiv.draggable) {
+					this._dragDiv.draggable = false;
+				}
+				if (this._clientDiv.contentEditable !== "true") {
+					this._clientDiv.contentEditable = true;
+				}
+
+				// Confusion ensues... avoid having the caret hidden.
+				this._clientDiv.blur();
+				this._clientDiv.focus();
+				this._clientDiv.blur();
+				this._clientDiv.focus();
+			}
 			if (this.isListening("DragEnd")) {
 				this.onDragEnd(this._createMouseEvent("DragEnd", e));
 			}
@@ -1658,6 +1690,7 @@ define(['orion/textview/textModel', 'orion/textview/keyBinding', 'orion/textview
 			if (!e) { e = window.event; }
 			this._dropTarget = false;
 			if (this.isListening("Drop")) {
+				this.focus();
 				this.onDrop(this._createMouseEvent("Drop", e));
 			}
 			/*
@@ -1836,20 +1869,32 @@ define(['orion/textview/textModel', 'orion/textview/keyBinding', 'orion/textview
 		_handleMouse: function (e) {
 			var result = true;
 			var target = this._frameWindow;
+			var self = this;
 			if (isIE || (isFirefox && !this._overlayDiv)) { target = this._clientDiv; }
 			if (this._overlayDiv) {
 				if (this._hasFocus) {
 					this._ignoreFocus = true;
 				}
-				var self = this;
 				setTimeout(function () {
 					self.focus();
 					self._ignoreFocus = false;
 				}, 0);
 			}
 			if (this._clickCount === 1) {
-				result = this._setSelectionTo(e.clientX, e.clientY, e.shiftKey, !isOpera && this.isListening("DragStart"));
-				if (result) { this._setGrab(target); }
+				var hasDrag = !isOpera && this.isListening("DragStart");
+				result = this._setSelectionTo(e.clientX, e.clientY, e.shiftKey, hasDrag);
+				if (result) {
+					this._setGrab(target);
+				} else {
+					if (isFirefox) {
+						this._ignoreBlur = true;
+						this._dragDiv.draggable = true;
+						this._clientDiv.contentEditable = false;
+						setTimeout(function() {
+							self._ignoreBlur = false;
+						}, 0);
+					}
+				}
 			} else {
 				/*
 				* Feature in IE8 and older, the sequence of events in the IE8 event model
@@ -2055,11 +2100,20 @@ define(['orion/textview/textModel', 'orion/textview/keyBinding', 'orion/textview
 					this._dragOffset = -1;
 				}
 				if (this._dragOffset !== -1) {
+					if (isFirefox) {
+						if (this._dragDiv.draggable) {
+							this._dragDiv.draggable = false;
+						}
+						if (this._clientDiv.contentEditable !== "true") {
+							this._clientDiv.contentEditable = true;
+						}
+					}
 					var selection = this._getSelection();
 					selection.extend(this._dragOffset);
 					selection.collapse();
 					this._setSelection(selection, true, true);
 					this._dragOffset = -1;
+					this.focus();
 				}
 				this._isMouseDown = false;
 				this._endAutoScroll();
@@ -3589,6 +3643,8 @@ define(['orion/textview/textModel', 'orion/textview/keyBinding', 'orion/textview
 				overlayDiv.style.zIndex = "1";
 				scrollDiv.appendChild(overlayDiv);
 			}
+			this._dragDiv = this._overlayDiv || this._clientDiv;
+
 			if (!isPad) {
 				clientDiv.contentEditable = "true";
 			}
@@ -3697,6 +3753,7 @@ define(['orion/textview/textModel', 'orion/textview/keyBinding', 'orion/textview
 			this._viewDiv = null;
 			this._clientDiv = null;
 			this._overlayDiv = null;
+			this._dragDiv = null;
 			this._leftDiv = null;
 			this._rightDiv = null;
 			this._frameDocument = null;
@@ -4442,6 +4499,7 @@ define(['orion/textview/textModel', 'orion/textview/keyBinding', 'orion/textview
 			} else {
 				var topNode = this._overlayDiv || this._clientDiv;
 				var grabNode = isIE ? clientDiv : this._frameWindow;
+				var dragNode = this._dragDiv;
 				handlers.push({target: clientDiv, type: "keydown", handler: function(e) { return self._handleKeyDown(e);}});
 				handlers.push({target: clientDiv, type: "keypress", handler: function(e) { return self._handleKeyPress(e);}});
 				handlers.push({target: clientDiv, type: "keyup", handler: function(e) { return self._handleKeyUp(e);}});
@@ -4456,13 +4514,13 @@ define(['orion/textview/textModel', 'orion/textview/keyBinding', 'orion/textview
 				handlers.push({target: grabNode, type: "mouseup", handler: function(e) { return self._handleMouseUp(e);}});
 				handlers.push({target: grabNode, type: "mousemove", handler: function(e) { return self._handleMouseMove(e);}});
 				handlers.push({target: body, type: "mousedown", handler: function(e) { return self._handleBodyMouseDown(e);}});
-				handlers.push({target: topNode, type: "dragstart", handler: function(e) { return self._handleDragStart(e);}});
-				handlers.push({target: topNode, type: "drag", handler: function(e) { return self._handleDrag(e);}});
-				handlers.push({target: topNode, type: "dragend", handler: function(e) { return self._handleDragEnd(e);}});
-				handlers.push({target: topNode, type: "dragenter", handler: function(e) { return self._handleDragEnter(e);}});
-				handlers.push({target: topNode, type: "dragover", handler: function(e) { return self._handleDragOver(e);}});
-				handlers.push({target: topNode, type: "dragleave", handler: function(e) { return self._handleDragLeave(e);}});
-				handlers.push({target: topNode, type: "drop", handler: function(e) { return self._handleDrop(e);}});
+				handlers.push({target: dragNode, type: "dragstart", handler: function(e) { return self._handleDragStart(e);}});
+				handlers.push({target: dragNode, type: "drag", handler: function(e) { return self._handleDrag(e);}});
+				handlers.push({target: dragNode, type: "dragend", handler: function(e) { return self._handleDragEnd(e);}});
+				handlers.push({target: dragNode, type: "dragenter", handler: function(e) { return self._handleDragEnter(e);}});
+				handlers.push({target: dragNode, type: "dragover", handler: function(e) { return self._handleDragOver(e);}});
+				handlers.push({target: dragNode, type: "dragleave", handler: function(e) { return self._handleDragLeave(e);}});
+				handlers.push({target: dragNode, type: "drop", handler: function(e) { return self._handleDrop(e);}});
 				if (isChrome) {
 					handlers.push({target: this._parentDocument, type: "mousemove", handler: function(e) { return self._handleMouseMove(e);}});
 					handlers.push({target: this._parentDocument, type: "mouseup", handler: function(e) { return self._handleMouseUp(e);}});
@@ -4531,6 +4589,7 @@ define(['orion/textview/textModel', 'orion/textview/keyBinding', 'orion/textview
 			this._maxLineIndex = -1;
 			this._ignoreSelect = true;
 			this._ignoreFocus = false;
+			this._ignoreBlur = false;
 			this._columnX = -1;
 			this._dragOffset = -1;
 
