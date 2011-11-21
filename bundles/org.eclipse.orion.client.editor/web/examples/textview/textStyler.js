@@ -502,7 +502,7 @@ define(['orion/textview/annotations'], function(mAnnotations) {
 		_createFoldingAnnotation: function(viewModel, baseModel, start, end) {
 			var startLine = baseModel.getLineAtOffset(start);
 			var endLine = baseModel.getLineAtOffset(end);
-			if (startLine === endLine) {
+			if (startLine === endLine || !mAnnotations || !mAnnotations.FoldingAnnotation) {
 				return null;
 			}
 			return new mAnnotations.FoldingAnnotation(viewModel, "orion.annotation.folding", start, end,

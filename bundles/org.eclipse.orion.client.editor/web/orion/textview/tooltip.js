@@ -109,7 +109,7 @@ define(['orion/textview/textView', 'orion/textview/textModel', 'orion/textview/p
 				(contentsDiv = this._htmlParent).innerHTML = contents;
 			} else if (contents instanceof Node) {
 				(contentsDiv = this._htmlParent).appendChild(contents);
-			} else if (contents instanceof mProjectionTextModel.ProjectionTextModel) {
+			} else if (mProjectionTextModel && mProjectionTextModel.ProjectionTextModel && contents instanceof mProjectionTextModel.ProjectionTextModel) {
 				if (!this._contentsView) {
 					this._emptyModel = new mTextModel.TextModel("");
 					//TODO need hook into setup.js (or editor.js) to create a text view (and styler)

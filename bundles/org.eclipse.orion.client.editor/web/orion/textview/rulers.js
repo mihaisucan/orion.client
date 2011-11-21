@@ -302,6 +302,7 @@ define(['orion/textview/tooltip'], function(mTooltip) {
 		 * @param {DOMEvent} e the mouse move event.
 		 */
 		onMouseMove: function(lineIndex, e) {
+			if (!mTooltip || !mTooltip.Tooltip) { return; }
 			var tooltip = mTooltip.Tooltip.getTooltip(this._view);
 			if (!tooltip) { return; }
 			if (tooltip.isVisible() && this._tooltipLineIndex === lineIndex) { return; }
@@ -330,6 +331,7 @@ define(['orion/textview/tooltip'], function(mTooltip) {
 		 * @param {DOMEvent} e the mouse out event.
 		 */
 		onMouseOut: function(lineIndex, e) {
+			if (!mTooltip || !mTooltip.Tooltip) { return; }
 			var tooltip = mTooltip.Tooltip.getTooltip(this._view);
 			if (!tooltip) { return; }
 			tooltip.setTarget(null);
@@ -658,9 +660,11 @@ define(['orion/textview/tooltip'], function(mTooltip) {
 			annotation = a;
 		}
 		if (annotation) {
-			var tooltip = mTooltip.Tooltip.getTooltip(this._view);
-			if (tooltip) {
-				tooltip.setTarget(null);
+			if (mTooltip && mTooltip.Tooltip) {
+				var tooltip = mTooltip.Tooltip.getTooltip(this._view);
+				if (tooltip) {
+					tooltip.setTarget(null);
+				}
 			}
 			if (annotation.expanded) {
 				annotation.collapse();
