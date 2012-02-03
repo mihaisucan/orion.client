@@ -303,6 +303,7 @@ define("orion/textview/undoStack", [], function() {
 			this.stack = [];
 			this._undoStart = undefined;
 			this._undoText = "";
+			this._undoType = 0;
 			this._ignoreUndo = false;
 			this._compoundChange = undefined;
 		},
@@ -325,13 +326,14 @@ define("orion/textview/undoStack", [], function() {
 		},
 		_commitUndo: function () {
 			if (this._undoStart !== undefined) {
-				if (this._undoStart < 0) {
-					this.add(new Change(-this._undoStart, "", this._undoText, ""));
+				if (this._undoType === -1) {
+					this.add(new Change(this._undoStart, "", this._undoText, ""));
 				} else {
 					this.add(new Change(this._undoStart, this._undoText, ""));
 				}
 				this._undoStart = undefined;
 				this._undoText = "";
+				this._undoType = 0;
 			}
 		},
 		_onDestroy: function(evt) {
@@ -343,12 +345,12 @@ define("orion/textview/undoStack", [], function() {
 			var start = e.start;
 			var removedCharCount = e.removedCharCount;
 			var addedCharCount = e.addedCharCount;
-			if (this._ignoreUndo) {
+			if (this._ignoreUndo || (!addedCharCount && !removedCharCount)) {
 				return;
 			}
 			if (this._undoStart !== undefined && 
 				!((addedCharCount === 1 && removedCharCount === 0 && start === this._undoStart + this._undoText.length) ||
-					(addedCharCount === 0 && removedCharCount === 1 && (((start + 1) === -this._undoStart) || (start === -this._undoStart)))))
+					(addedCharCount === 0 && removedCharCount === 1 && (((start + 1) === this._undoStart) || (start === this._undoStart)))))
 			{
 				this._commitUndo();
 			}
@@ -358,10 +360,12 @@ define("orion/textview/undoStack", [], function() {
 						this._undoStart = start;
 					}
 					this._undoText = this._undoText + newText;
+					this._undoType = 1;
 					return;
 				} else if (addedCharCount === 0 && removedCharCount === 1) {
-					var deleting = this._undoText.length > 0 && -this._undoStart === start;
-					this._undoStart = -start;
+					var deleting = this._undoText.length > 0 && this._undoStart === start;
+					this._undoType = -1;
+					this._undoStart = start;
 					if (deleting) {
 						this._undoText = this._undoText + this.model.getText(start, start + removedCharCount);
 					} else {
