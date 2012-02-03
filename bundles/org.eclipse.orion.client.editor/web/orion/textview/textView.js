@@ -9,7 +9,7 @@
  * Contributors: 
  *		Felipe Heidrich (IBM Corporation) - initial API and implementation
  *		Silenio Quarti (IBM Corporation) - initial API and implementation
- *		Mihai Sucan (Mozilla Foundation) - fix for Bug#334583 Bug#348471 Bug#349485 Bug#350595 Bug#360726 Bug#361180 Bug#362835 Bug#362428 Bug#362286 Bug#354270 Bug#361474 Bug#363945 Bug#366312
+ *		Mihai Sucan (Mozilla Foundation) - fix for Bug#334583 Bug#348471 Bug#349485 Bug#350595 Bug#360726 Bug#361180 Bug#362835 Bug#362428 Bug#362286 Bug#354270 Bug#361474 Bug#363945 Bug#366312 Bug#370548
  ******************************************************************************/
 
 /*global window document navigator setTimeout clearTimeout XMLHttpRequest define DOMException */
@@ -4683,7 +4683,10 @@ define("orion/textview/textView", ['orion/textview/textModel', 'orion/textview/k
 						break done;
 					}
 				}
-				offset += nodeLength;
+				var childRect = lineChild.getBoundingClientRect();
+				if (childRect.right <= x) {
+					offset += nodeLength;
+				}
 				lineChild = lineChild.nextSibling;
 			}
 			if (dummy) { clientDiv.removeChild(dummy); }
